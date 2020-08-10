@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers._
 import org.scalatest.EitherValues._
 import org.scalatest.funsuite._
 import ResultedCmdMatchers._
-import CustomEitherValues._
+import EffectValues._
 import cli3.{Res => R}
 import cli3.Def._
 import cli3.RecognizeSpec.FsApp
@@ -24,30 +24,30 @@ class RecognizeSpec extends AnyFunSuite {
   // -a    -> a
   // --abc -> abc
   test("key") {
-    Recognize.key("abc") shouldBe Right("abc")
-    Recognize.key("abc.def") shouldBe Right("abc.def")
-    Recognize.key("abc-def") shouldBe Right("abc-def")
-    Recognize.key("abc_def") shouldBe Right("abc_def")
-    Recognize.key("abc def") shouldBe Right("abc")
-    Recognize.key("abc=def") shouldBe Right("abc")
-    Recognize.key("abc/def") shouldBe Right("abc")
-    Recognize.key("_abc") shouldBe Left(RecognizeError.IllegalFirstChar('_'))
-    Recognize.key(":abc") shouldBe Left(RecognizeError.IllegalFirstChar(':'))
-    Recognize.key("-abc") shouldBe Left(RecognizeError.IllegalFirstChar('-'))
-    Recognize.key("abc-") shouldBe Left(RecognizeError.IllegalLastChar('-'))
-    Recognize.key("abc.") shouldBe Left(RecognizeError.IllegalLastChar('.'))
-    Recognize.key("abc_") shouldBe Left(RecognizeError.IllegalLastChar('_'))
+    Recognize.key("abc").value shouldBe "abc"
+    Recognize.key("abc.def").value shouldBe "abc.def"
+    Recognize.key("abc-def").value shouldBe "abc-def"
+    Recognize.key("abc_def").value shouldBe "abc_def"
+    Recognize.key("abc def").value shouldBe "abc"
+    Recognize.key("abc=def").value shouldBe "abc"
+    Recognize.key("abc/def").value shouldBe "abc"
+    Recognize.key("_abc") shouldBe RecognizeErr.IllegalFirstChar('_')
+    Recognize.key(":abc") shouldBe RecognizeErr.IllegalFirstChar(':')
+    Recognize.key("-abc") shouldBe RecognizeErr.IllegalFirstChar('-')
+    Recognize.key("abc-") shouldBe RecognizeErr.IllegalLastChar('-')
+    Recognize.key("abc.") shouldBe RecognizeErr.IllegalLastChar('.')
+    Recognize.key("abc_") shouldBe RecognizeErr.IllegalLastChar('_')
   }
 
   test("keyed") {
     val cmd = new Cmd("program", keyedProps = Flag("abc") :+ Opt("def"))
 
-    Recognize.keyed("abc", cmd) shouldBe Right((Flag("abc"), None))
-    Recognize.keyed("abc xxx", cmd).left.value shouldBe RecognizeError.FlagWithValue(Flag("abc"), "xxx")
+    Recognize.keyed("abc", cmd).value shouldBe (Flag("abc"), None)
+    Recognize.keyed("abc xxx", cmd) shouldBe RecognizeErr.FlagWithValue(Flag("abc"), "xxx")
 
-    Recognize.keyed("def", cmd) shouldBe Right((Opt("def"), None))
-    Recognize.keyed("def xxx", cmd) shouldBe Right((Opt("def"), Some("xxx")))
-    Recognize.keyed("def=xxx", cmd) shouldBe Right((Opt("def"), Some("xxx")))
+    Recognize.keyed("def", cmd).value shouldBe (Opt("def"), None)
+    Recognize.keyed("def xxx", cmd).value shouldBe (Opt("def"), Some("xxx"))
+    Recognize.keyed("def=xxx", cmd).value shouldBe (Opt("def"), Some("xxx"))
   }
 
   test("cmd. flags + props") {
@@ -94,10 +94,10 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // simple equation with no value coming later nor specified in-place
-    Recognize.ast("--abc", "--def").left.value shouldBe RecognizeError.OptionWithoutValue(Opt("def").!)
+    Recognize.ast("--abc", "--def") shouldBe RecognizeErr.OptionWithoutValue(Opt("def").!)
 
     // missed required option
-    Recognize.ast("--abc").left.value shouldBe RecognizeError.MissingRequiredProps(Seq("--def"))
+    Recognize.ast("--abc") shouldBe RecognizeErr.MissingRequiredProps(Seq("--def"))
   }
 
   test("cmd. args. basic") {
@@ -119,7 +119,7 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // nothing
-    Recognize.ast(Array.empty[String]).left.value shouldBe RecognizeError.MissingRequiredProps(Seq("<0>"))
+    Recognize.ast(Array.empty[String]) shouldBe RecognizeErr.MissingRequiredProps(Seq("<0>"))
   }
 
   test("cmd. vararg. fully optional") {
@@ -139,7 +139,7 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // nothing
-    Recognize.ast(Array.empty[String]) shouldBe Symbol("right")
+    Recognize.ast(Array.empty[String]) shouldBe Symbol("ok")
   }
 
   test("cmd. vararg. with min occurrence") {
@@ -159,7 +159,7 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // nothing
-    Recognize.ast(Array.empty[String]).left.value shouldBe RecognizeError.MissingRequiredProps(Seq("<..files> (still requires at least 1)"))
+    Recognize.ast(Array.empty[String]) shouldBe RecognizeErr.MissingRequiredProps(Seq("<..files> (still requires at least 1)"))
   }
 
   test("cmd. mixed arg + vararg") {
@@ -184,10 +184,10 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // only 2 specified
-    Recognize.ast("/from", "/to").left.value shouldBe RecognizeError.MissingRequiredProps(Seq("<..masks> (still requires at least 1)"))
+    Recognize.ast("/from", "/to") shouldBe RecognizeErr.MissingRequiredProps(Seq("<..masks> (still requires at least 1)"))
 
     // only 1 specified
-    Recognize.ast("/from").left.value shouldBe RecognizeError.MissingRequiredProps(Seq("<to>", "<..masks> (still requires at least 1)"))
+    Recognize.ast("/from") shouldBe RecognizeErr.MissingRequiredProps(Seq("<to>", "<..masks> (still requires at least 1)"))
   }
 
   test("cmd, cmd") {
@@ -236,10 +236,10 @@ class RecognizeSpec extends AnyFunSuite {
     )
 
     // unknown command
-    Recognize.ast("move").left.value shouldBe RecognizeError.UnknownIndexedProp("move")
+    Recognize.ast("move") shouldBe RecognizeErr.UnknownIndexedProp("move")
 
     // lack of arguments
-    Recognize.ast("copy", "/from").left.value shouldBe RecognizeError.SubError(copy, RecognizeError.MissingRequiredProps(Seq("<to>")))
+    Recognize.ast("copy", "/from") shouldBe RecognizeErr.SubError(copy, RecognizeErr.MissingRequiredProps(Seq("<to>")))
   }
 
   test("flags. repetitive. positive") {
@@ -258,7 +258,7 @@ class RecognizeSpec extends AnyFunSuite {
       keyedProps = Flag('v'))
 
     Recognize.ast("-v").value should have { flag.set('v') }
-    Recognize.ast("-v", "-v").left.value shouldBe RecognizeError.RepetitionOfNonRepetitive(Flag('v'))
+    Recognize.ast("-v", "-v") shouldBe RecognizeErr.RepetitionOfNonRepetitive(Flag('v'))
   }
 
   test("opts. repetitive. positive") {
@@ -277,7 +277,7 @@ class RecognizeSpec extends AnyFunSuite {
       keyedProps = Opt('v'))
 
     Recognize.ast("-v", "1").value should have { opt.set('v', "1") }
-    Recognize.ast("-v", "1", "-v", "2").left.value shouldBe RecognizeError.RepetitionOfNonRepetitive(Opt('v'))
+    Recognize.ast("-v", "1", "-v", "2") shouldBe RecognizeErr.RepetitionOfNonRepetitive(Opt('v'))
   }
 
   test("custom result") {
@@ -318,44 +318,44 @@ object RecognizeSpec {
 
     val builder = new Builder.NoCmd[FsCmd] {
 
-      private def withFile[T](init: T, value: String)(fn: (T, Path) => T): RecognizeError Either T = {
+      private def withFile[T](init: T, value: String)(fn: (T, Path) => T): Effect[T] = {
         val path = Paths.get(value)
-        if (Files.exists(path)) Right(fn(init, path)) else Left(RecognizeError.Custom(s"File not found: $value"))
+        if (Files.exists(path)) Ok(fn(init, path)) else RecognizeErr.Custom(s"File not found: $value")
       }
 
       override def withFlag(
         init: FsCmd,
-        flag: Flag): Either[RecognizeError, FsCmd] = Left(RecognizeError.UnexpectedFlag(flag))
+        flag: Flag): Effect[FsCmd] = RecognizeErr.UnexpectedFlag(flag)
 
       override def withOpt(
         init: FsCmd,
         opt: Opt,
-        value: String): Either[RecognizeError, FsCmd] = if (opt.key =:= 'n') {
+        value: String): Effect[FsCmd] = if (opt.key =:= 'n') {
         for {
-          n <- try Right(value.toInt) catch {
-            case err: NumberFormatException => Left(RecognizeError.FormatError(err.getMessage))
+          n <- try Ok(value.toInt) catch {
+            case err: NumberFormatException => RecognizeErr.FormatError(err.getMessage)
           }
           r <- init match {
-            case cmd: Head => Right(cmd.copy(linesNum = n))
-            case cmd: Tail => Right(cmd.copy(linesNum = n))
-            case cmd       => Left(RecognizeError.IllegalState(cmd))
+            case cmd: Head => Ok(cmd.copy(linesNum = n))
+            case cmd: Tail => Ok(cmd.copy(linesNum = n))
+            case cmd       => RecognizeErr.IllegalState(cmd)
           }
         } yield r
-      } else Left(RecognizeError.UnexpectedOpt(opt, value))
+      } else RecognizeErr.UnexpectedOpt(opt, value)
 
       override def withArg(
         init: FsCmd,
         arg: Arg,
-        value: String): Either[RecognizeError, FsCmd] = {
+        value: String): Effect[FsCmd] = {
         init match {
           case cmd@Open(null)    => withFile[Open](cmd, value) { case (c, f) => c.copy(file = f) }
-          case Open(x)           => Left(RecognizeError.ArgAlreadySet(arg, value))
+          case Open(x)           => RecognizeErr.ArgAlreadySet(arg, value)
           case cmd@Cat(null)     => withFile[Cat](cmd, value) { case (c, f) => c.copy(file = f) }
-          case Cat(x)            => Left(RecognizeError.ArgAlreadySet(arg, value))
+          case Cat(x)            => RecognizeErr.ArgAlreadySet(arg, value)
           case cmd@Head(null, _) => withFile[Head](cmd, value) { case (c, f) => c.copy(file = f) }
-          case Head(x, _)        => Left(RecognizeError.ArgAlreadySet(arg, value))
+          case Head(x, _)        => RecognizeErr.ArgAlreadySet(arg, value)
           case cmd@Tail(null, _) => withFile[Tail](cmd, value) { case (c, f) => c.copy(file = f) }
-          case Tail(x, _)        => Left(RecognizeError.ArgAlreadySet(arg, value))
+          case Tail(x, _)        => RecognizeErr.ArgAlreadySet(arg, value)
         }
       }
     }
@@ -368,20 +368,20 @@ object RecognizeSpec {
   final object FsApp {
     private implicit val fsCmdAdapter: SubCommandAdapter[FsApp] = new SubCommandAdapter[FsApp] {
       type Command = FsCmd
-      override def init(cmd: Cmd): Either[RecognizeError, (FsCmd, Builder[FsCmd])] = cmd.program match {
-        case "open" => Right((FsCmd.Open(null), FsCmd.builder))
-        case "cat"  => Right((FsCmd.Cat(null), FsCmd.builder))
-        case "head" => Right((FsCmd.Head(null, -1), FsCmd.builder))
-        case "tail" => Right((FsCmd.Tail(null, -1), FsCmd.builder))
-        case _      => Left(RecognizeError.UnknownCmd(cmd))
+      override def init(cmd: Cmd): Effect[(FsCmd, Builder[FsCmd])] = cmd.program match {
+        case "open" => Ok((FsCmd.Open(null), FsCmd.builder))
+        case "cat"  => Ok((FsCmd.Cat(null), FsCmd.builder))
+        case "head" => Ok((FsCmd.Head(null, -1), FsCmd.builder))
+        case "tail" => Ok((FsCmd.Tail(null, -1), FsCmd.builder))
+        case _      => RecognizeErr.UnknownCmd(cmd)
       }
     }
 
     val builder = new Builder[FsApp]()(fsCmdAdapter) {
-      override def withFlag(init: FsApp, flag: Flag): Either[RecognizeError, FsApp] = if (flag.key =:= 'v') Right(init.copy(verbose = true)) else Left(RecognizeError.UnexpectedFlag(flag))
-      override def withOpt(init: FsApp, opt: Opt, value: String): Either[RecognizeError, FsApp] = Left(RecognizeError.UnexpectedOpt(opt, value))
-      override def withArg(init: FsApp, arg: Arg, value: String): Either[RecognizeError, FsApp] = Left(RecognizeError.UnexpectedArg(arg, value))
-      override def withSubCmd(init: FsApp, cmd: Cmd, value: sub.Command): Either[RecognizeError, FsApp] = Right(init.copy(cmd = value.asInstanceOf[FsCmd]))
+      override def withFlag(init: FsApp, flag: Flag): Effect[FsApp] = if (flag.key =:= 'v') Ok(init.copy(verbose = true)) else RecognizeErr.UnexpectedFlag(flag)
+      override def withOpt(init: FsApp, opt: Opt, value: String): Effect[FsApp] = RecognizeErr.UnexpectedOpt(opt, value)
+      override def withArg(init: FsApp, arg: Arg, value: String): Effect[FsApp] = RecognizeErr.UnexpectedArg(arg, value)
+      override def withSubCmd(init: FsApp, cmd: Cmd, value: sub.Command): Effect[FsApp] = Ok(init.copy(cmd = value.asInstanceOf[FsCmd]))
     }
   }
 }

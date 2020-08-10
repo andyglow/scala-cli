@@ -9,41 +9,41 @@ object Recognize {
     def selfMap(fn: T => T) = fn(x)
   }
 
-  private[cli3] def unquote(x: String): Either[RecognizeError, String] = {
+  private[cli3] def unquote(x: String): Effect[String] = {
     if (x.head.isQ) {
-      if (x.length == 1 || x.last != x.head) Left(RecognizeError.UnquotedString(x))
-      else Right(x.drop(1).dropRight(1))
-    } else Right(x)
+      if (x.length == 1 || x.last != x.head) RecognizeErr.UnquotedString(x)
+      else Ok(x.drop(1).dropRight(1))
+    } else Ok(x)
   }
 
-  private[cli3] def key(x: String): Either[RecognizeError, String] = for {
+  private[cli3] def key(x: String): Effect[String] = for {
     h <- x.headOption match {
-           case Some(c) if !c.isLetterOrDigit => Left(RecognizeError.IllegalFirstChar(c))
-           case Some(c)                       => Right(c)
-           case None                          => Left(RecognizeError.EmptyString)
+           case Some(c) if !c.isLetterOrDigit => RecognizeErr.IllegalFirstChar(c)
+           case Some(c)                       => Ok(c)
+           case None                          => RecognizeErr.EmptyString
          }
     t  = x.tail.takeWhile { x => x.isLetterOrDigit || x == '_' || x == '.' || x == '-' }
     _ <- t.lastOption match {
-      case Some(c) if !c.isLetterOrDigit => Left(RecognizeError.IllegalLastChar(c))
-      case _                             => Right(())
+      case Some(c) if !c.isLetterOrDigit => RecognizeErr.IllegalLastChar(c)
+      case _                             => Ok(())
     }
   } yield h +: t
 
-  private[cli3] def keyed(x: String, cmd: D.Cmd): Either[RecognizeError, (D.Keyed, Option[String])] = for {
+  private[cli3] def keyed(x: String, cmd: D.Cmd): Effect[(D.Keyed, Option[String])] = for {
     k <- key(x)
-    p <- cmd.resolveKeyed(k) toRight RecognizeError.UnknownProperty(k)
+    p <- cmd.resolveKeyed(k) okOr RecognizeErr.UnknownProperty(k)
     r  = x.drop(k.length).trim selfMap { x => if (x.headOption.contains('=')) x.drop(1) else x }
-    _ <- if (p.isInstanceOf[D.Flag] && x.length > k.length) Left(RecognizeError.FlagWithValue(p.asInstanceOf[D.Flag], r)) else Right(())
-    v  <- if (r.nonEmpty) unquote(r).map(Some.apply) else Right(None)
+    _ <- if (p.isInstanceOf[D.Flag] && x.length > k.length) RecognizeErr.FlagWithValue(p.asInstanceOf[D.Flag], r) else Ok(())
+    v  <- if (r.nonEmpty) unquote(r).map(Some.apply) else Ok(None)
   } yield (p, v)
 
-  def apply[T](init: T, bld: Builder[T])(x: String, xs: String*)(implicit defn: D.Cmd): Either[RecognizeError, T] = Recognize(init, bld, (x +: xs).toArray)
+  def apply[T](init: T, bld: Builder[T])(x: String, xs: String*)(implicit defn: D.Cmd): Effect[T] = Recognize(init, bld, (x +: xs).toArray)
 
-  def apply[T](init: T, bld: Builder[T], xs: Array[String])(implicit defn: D.Cmd): Either[RecognizeError, T] = cmd(xs, defn, init, bld)
+  def apply[T](init: T, bld: Builder[T], xs: Array[String])(implicit defn: D.Cmd): Effect[T] = cmd(xs, defn, init, bld)
 
-  def ast(x: String, xs: String*)(implicit defn: D.Cmd): Either[RecognizeError, Res.Cmd] = ast((x +: xs).toArray)(defn)
+  def ast(x: String, xs: String*)(implicit defn: D.Cmd): Effect[Res.Cmd] = ast((x +: xs).toArray)(defn)
 
-  def ast(xs: Array[String])(implicit defn: D.Cmd): Either[RecognizeError, Res.Cmd] = {
+  def ast(xs: Array[String])(implicit defn: D.Cmd): Effect[Res.Cmd] = {
     val init = Res.Cmd(defn)
     val bld  = new Res.Builder()
 
@@ -54,7 +54,7 @@ object Recognize {
     xs: Array[String],
     defn: D.Cmd,
     init: T,
-    bld: Builder[T]): Either[RecognizeError, T] = {
+    bld: Builder[T]): Effect[T] = {
 
     parseCmd(
       xs,
@@ -68,18 +68,18 @@ object Recognize {
     xs: Array[String],
     defn: D.Cmd,
     res: T,
-    bld: Builder[T]): Either[RecognizeError, T] = {
+    bld: Builder[T]): Effect[T] = {
 
     def handleKeyed(str: String) = {
       Recognize.keyed(str, defn) match {
         // --flag
-        case Right((p: D.Flag, None))    => for {
+        case Ok((p: D.Flag, None))    => for {
           u <- bld.withFlag(res, p)
           d <- defn.occurred(p)
           r <- parseCmd(xs.tail, d, u, bld)
         } yield r
         // --opt=val
-        case Right((p: D.Opt, Some(v)))  => for {
+        case Ok((p: D.Opt, Some(v)))  => for {
           v <- unquote(v)
           u <- bld.withOpt(res, p, v)
           d <- defn.occurred(p)
@@ -87,7 +87,7 @@ object Recognize {
         } yield r
         // --opt
         // assuming the value comes as next element of `xs` array
-        case Right((p: D.Opt, None)) if xs.tail.nonEmpty =>
+        case Ok((p: D.Opt, None)) if xs.tail.nonEmpty =>
           for {
             v <- unquote(xs.tail.head)
             u <- bld.withOpt(res, p, v)
@@ -95,9 +95,9 @@ object Recognize {
             r <- parseCmd(xs.tail.tail, d, u, bld)
           } yield r
         // option without value
-        case Right((p: D.Opt, None)) => Left(RecognizeError.OptionWithoutValue(p))
+        case Ok((p: D.Opt, None)) => RecognizeErr.OptionWithoutValue(p)
         // error
-        case Left(err) => Left(err)
+        case err: Err => err
       }
     }
 
@@ -115,20 +115,20 @@ object Recognize {
           init       <- bld.init(c)
           (cc, ccBld) = init
           r          <- parseCmd(xs.tail, c, cc, ccBld) match {
-                         case Right(resCmd) => bld.withSubCmd(res, c, resCmd)
-                         case Left(err)     => Left(RecognizeError.SubError(c, err))
+                         case Ok(resCmd) => bld.withSubCmd(res, c, resCmd)
+                         case err: Err   => RecognizeErr.SubError(c, err)
                        }
         } yield r
 
         // the rest
-        case None => Left(RecognizeError.UnknownIndexedProp(str))
+        case None => RecognizeErr.UnknownIndexedProp(str)
       }
     }
 
     xs.map(_.trim).filterNot(_.isEmpty).headOption match {
       case Some(x) if x.startsWith("--")                 => handleKeyed(x.substring(2))
       case Some(x) if x.startsWith("-") && x.length == 2 => handleKeyed(x.substring(1))
-      case Some(x) if x.startsWith("-")                  => Left(RecognizeError.IllegalSyntax(x))
+      case Some(x) if x.startsWith("-")                  => RecognizeErr.IllegalSyntax(x)
       case Some(x)                                       => for { x <- unquote(x); r <- handleIndexed(x) } yield r
       case None =>
         val props = defn.requiredProps flatMap {
@@ -138,8 +138,8 @@ object Recognize {
           case _               => None
         }
 
-        if (props.isEmpty) Right(res) else {
-          Left(RecognizeError.MissingRequiredProps(props))
+        if (props.isEmpty) Ok(res) else {
+          RecognizeErr.MissingRequiredProps(props)
         }
     }
   }

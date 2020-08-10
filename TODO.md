@@ -18,4 +18,4 @@
 - [x] support for repetitive opts: `-l=debug -l=info` for Lists
 - [x] support for repetitive flags: `-v -v -v`
 - [ ] support for negative flags. if there is a flag defined as `--color`, it would make sense to handle as well a flaf `--no-color`
-- [ ] custom effect instead of either (+ dsl)
+- [x] custom effect instead of either (+ dsl)

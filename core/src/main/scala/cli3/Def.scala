@@ -225,15 +225,15 @@ object Def {
       }
     }
 
-    private[cli3] def occurred(x: Prop): Either[RecognizeError, Cmd] = x match {
-      case f: Keyed if !f.repetitive && f.occurrences > 0 => Left(RecognizeError.RepetitionOfNonRepetitive(f))
-      case f: Keyed       => Right(copy(keyedProps = keyedProps occurred f))
-      case _: Arg.VarArg  => Right(copy(indexedProps = indexedProps match {
+    private[cli3] def occurred(x: Prop): Effect[Cmd] = x match {
+      case f: Keyed if !f.repetitive && f.occurrences > 0 => RecognizeErr.RepetitionOfNonRepetitive(f)
+      case f: Keyed       => Ok(copy(keyedProps = keyedProps occurred f))
+      case _: Arg.VarArg  => Ok(copy(indexedProps = indexedProps match {
         case args: Args.Final    => args.copy(last = args.last.copy(minOcc = 0 max (args.last.minOcc - 1)))
         case args: Args.Growable => args
         case cmds: Cmds          => cmds
       }))
-      case a: Arg.Arg1    => Right(copy(indexedProps = indexedProps match {
+      case a: Arg.Arg1    => Ok(copy(indexedProps = indexedProps match {
         case args: Args.Growable => args - a
         case args: Args.Final    => args - a
         case cmds: Cmds          => cmds

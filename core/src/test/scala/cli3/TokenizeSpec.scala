@@ -3,7 +3,7 @@ package cli3
 import org.scalatest.matchers.should.Matchers._
 import org.scalatest.EitherValues._
 import org.scalatest.wordspec._
-import CustomEitherValues._
+import EffectValues._
 
 
 class TokenizeSpec extends AnyWordSpec {
@@ -35,9 +35,9 @@ class TokenizeSpec extends AnyWordSpec {
         Tokenize(""" `"''abc"` `'"def'"` """).value should contain only ( "`\"''abc\"`", "`'\"def'\"`" )
 
         // unterminated strings
-        Tokenize(""" "abc""").left.value shouldBe TokenizeError.UnexpectedEOL
-        Tokenize(""" 'abc""").left.value shouldBe TokenizeError.UnexpectedEOL
-        Tokenize(""" `abc""").left.value shouldBe TokenizeError.UnexpectedEOL
+        Tokenize(""" "abc""") shouldBe TokenizeErr.UnexpectedEOL
+        Tokenize(""" 'abc""") shouldBe TokenizeErr.UnexpectedEOL
+        Tokenize(""" `abc""") shouldBe TokenizeErr.UnexpectedEOL
       }
 
       "short flags" in {

@@ -16,4 +16,22 @@ package object cli3 {
     def |(y: String): Key.Full = Key.Full(x, y)
     private[cli3] def isQ: Boolean = x == '\'' || x == '"' || x == '`'
   }
+
+  private[cli3] implicit class _3AnyOps[T](private val x: T) extends AnyVal {
+
+    def ok: Ok[T] = Ok(x)
+  }
+
+  private[cli3] implicit class _3OptOps[T](private val x: Option[T]) extends AnyVal {
+
+    def okOr(err: Err): Effect[T] = x.map(Ok(_)) getOrElse err
+  }
+
+  private[cli3] implicit class _3EitherOps[L, R](private val x: Either[L, R]) extends AnyVal {
+
+    def effect(implicit ev: L =:= Err): Effect[R] = x match {
+      case Right(v)  => Ok(v)
+      case Left(err) => err.asInstanceOf[Err]
+    }
+  }
 }

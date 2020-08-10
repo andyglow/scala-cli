@@ -4,11 +4,11 @@ import scala.util.control.NoStackTrace
 
 private[cli3] object Tokenize {
 
-  private case class TokenizeException(error: TokenizeError) extends Exception with NoStackTrace
+  private case class TokenizeException(error: TokenizeErr) extends Exception with NoStackTrace
 
-  def apply(x: String): Either[CliError, Seq[String]] = Tokenize(x.toCharArray)
+  def apply(x: String): Effect[Seq[String]] = Tokenize(x.toCharArray)
 
-  def apply(x: Array[Char]): Either[CliError, Seq[String]] = {
+  def apply(x: Array[Char]): Effect[Seq[String]] = {
     val len = x.length
     var pos = 0
 
@@ -34,7 +34,7 @@ private[cli3] object Tokenize {
       val q = x(pos) // remember first char. one of quote [`"']
       pos += 1 // head Quote
       while(!isEOL && q != x(pos)) pos += 1
-      if (!isEOL) pos += 1 else throw TokenizeException(TokenizeError.UnexpectedEOL)// trailing Quote
+      if (!isEOL) pos += 1 else throw TokenizeException(TokenizeErr.UnexpectedEOL)// trailing Quote
       new String(x, start, pos - start)
     }
 
@@ -44,10 +44,10 @@ private[cli3] object Tokenize {
       if (!isEOL) try {
         tokens = tokens :+ (if (isQ) readString else readToken)
       } catch {
-        case TokenizeException(err) => return Left(err)
+        case TokenizeException(err) => return err
       }
     }
 
-    Right(tokens)
+    Ok(tokens)
   }
 }

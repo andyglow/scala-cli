@@ -136,13 +136,13 @@ object Res {
 
   private object SubAdapter extends SubCommandAdapter[Cmd] {
     override type Command = Cmd
-    override def init(cmd: Def.Cmd): Either[RecognizeError, (Cmd, cli3.Builder[Cmd])] = Right(Cmd(cmd), new Builder)
+    override def init(cmd: Def.Cmd): Effect[(Cmd, cli3.Builder[Cmd])] = Ok(Cmd(cmd), new Builder)
   }
 
   class Builder extends cli3.Builder[Cmd]()(SubAdapter) {
-    override def withFlag(init: Cmd, flag: Def.Flag): Either[RecognizeError, Cmd] = Right(init.withFlag(flag))
-    override def withOpt(init: Cmd, opt: Def.Opt, value: String): Either[RecognizeError, Cmd] = Right(init.withOpt(opt, value))
-    override def withArg(init: Cmd, arg: Def.Arg, value: String): Either[RecognizeError, Cmd] = Right(init.withArg(arg, value))
-    override def withSubCmd(init: Cmd, cmd: Def.Cmd, value: sub.Command): Either[RecognizeError, Cmd] = Right(init.withCmd(cmd, value.asInstanceOf[Cmd]))
+    override def withFlag(init: Cmd, flag: Def.Flag): Effect[Cmd] = Ok(init.withFlag(flag))
+    override def withOpt(init: Cmd, opt: Def.Opt, value: String): Effect[Cmd] = Ok(init.withOpt(opt, value))
+    override def withArg(init: Cmd, arg: Def.Arg, value: String): Effect[Cmd] = Ok(init.withArg(arg, value))
+    override def withSubCmd(init: Cmd, cmd: Def.Cmd, value: sub.Command): Effect[Cmd] = Ok(init.withCmd(cmd, value.asInstanceOf[Cmd]))
   }
 }
