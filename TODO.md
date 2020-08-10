@@ -9,13 +9,14 @@
       into VarArg that will be decreased each time we handle vararg and checked at the end.
       
       Resulted in `Res.Cmd`   
-- [ ] POSIX-style short option names (-a) with grouping (-abc)      
+- [x] POSIX-style short option names (-a) with grouping (-abc)      
 - [ ] implement 2-col layout for Usage
 - [ ] add `examples` for command to allow user to specify examples that would be printed out with the Usage
 - [ ] implement colorful rendered for Usage 
 - [ ] implement macro-derivation
-- [ ] support Property arguments (-Dkey=value, -D key1=value key2=value) for Maps
+- [ ] support Property arguments (-Dkey1=value1 -Dkey2=value2) for Maps
 - [x] support for repetitive opts: `-l=debug -l=info` for Lists
 - [x] support for repetitive flags: `-v -v -v`
 - [ ] support for negative flags. if there is a flag defined as `--color`, it would make sense to handle as well a flaf `--no-color`
 - [x] custom effect instead of either (+ dsl)
+- [ ] ignore or fail on unknown properties behaviour

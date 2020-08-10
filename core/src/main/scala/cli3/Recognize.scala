@@ -70,21 +70,27 @@ object Recognize {
     res: T,
     bld: Builder[T]): Effect[T] = {
 
-    def handleKeyed(str: String) = {
-      Recognize.keyed(str, defn) match {
+    def handleKeyed(head: String, localTail: Option[String]): Effect[T] = {
+      def tail(xs: Array[String]) = localTail.fold(xs) { _ +: xs }
+
+      Recognize.keyed(head, defn) match {
         // --flag
-        case Ok((p: D.Flag, None))    => for {
-          u <- bld.withFlag(res, p)
-          d <- defn.occurred(p)
-          r <- parseCmd(xs.tail, d, u, bld)
-        } yield r
+        case Ok((p: D.Flag, None))    =>
+          for {
+            u <- bld.withFlag(res, p)
+            d <- defn.occurred(p)
+            r <- parseCmd(tail(xs.tail), d, u, bld)
+          } yield r
+
         // --opt=val
-        case Ok((p: D.Opt, Some(v)))  => for {
-          v <- unquote(v)
-          u <- bld.withOpt(res, p, v)
-          d <- defn.occurred(p)
-          r <- parseCmd(xs.tail, d, u, bld)
-        } yield r
+        case Ok((p: D.Opt, Some(v)))  =>
+          for {
+            v <- unquote(v)
+            u <- bld.withOpt(res, p, v)
+            d <- defn.occurred(p)
+            r <- parseCmd(tail(xs.tail), d, u, bld)
+          } yield r
+
         // --opt
         // assuming the value comes as next element of `xs` array
         case Ok((p: D.Opt, None)) if xs.tail.nonEmpty =>
@@ -92,16 +98,20 @@ object Recognize {
             v <- unquote(xs.tail.head)
             u <- bld.withOpt(res, p, v)
             d <- defn.occurred(p)
-            r <- parseCmd(xs.tail.tail, d, u, bld)
+            r <- parseCmd(tail(xs.tail.tail), d, u, bld)
           } yield r
+
         // option without value
-        case Ok((p: D.Opt, None)) => RecognizeErr.OptionWithoutValue(p)
+        case Ok((p: D.Opt, None)) =>
+          RecognizeErr.OptionWithoutValue(p)
+
         // error
-        case err: Err => err
+        case err: Err =>
+          err
       }
     }
 
-    def handleIndexed(str: String) = {
+    def handleIndexed(str: String): Effect[T] = {
       defn.resolveIndexed(str) match {
         // args
         case Some(a: D.Arg) => for {
@@ -126,9 +136,9 @@ object Recognize {
     }
 
     xs.map(_.trim).filterNot(_.isEmpty).headOption match {
-      case Some(x) if x.startsWith("--")                 => handleKeyed(x.substring(2))
-      case Some(x) if x.startsWith("-") && x.length == 2 => handleKeyed(x.substring(1))
-      case Some(x) if x.startsWith("-")                  => RecognizeErr.IllegalSyntax(x)
+      case Some(x) if x.startsWith("--")                 => handleKeyed(x.substring(2), None)
+      case Some(x) if x.startsWith("-") && x.length == 2 => handleKeyed(x.substring(1), None)
+      case Some(x) if x.startsWith("-") && x.length > 2  => handleKeyed(x.charAt(1).toString, Some("-" + x.substring(2)))
       case Some(x)                                       => for { x <- unquote(x); r <- handleIndexed(x) } yield r
       case None =>
         val props = defn.requiredProps flatMap {

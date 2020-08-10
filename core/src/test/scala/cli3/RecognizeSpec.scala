@@ -242,6 +242,43 @@ class RecognizeSpec extends AnyFunSuite {
     Recognize.ast("copy", "/from") shouldBe RecognizeErr.SubError(copy, RecognizeErr.MissingRequiredProps(Seq("<to>")))
   }
 
+  test("flags. grouped. positive") {
+    implicit val cmd = new Cmd(
+      "program",
+      keyedProps = Flag('a') :+ Flag('b') :+ Flag('c'))
+
+    Recognize.ast("-abc").value should have (
+      flag.set('a'),
+      flag.set('b'),
+      flag.set('c')
+    )
+
+    Recognize.ast("-a", "-bc").value should have (
+      flag.set('a'),
+      flag.set('b'),
+      flag.set('c')
+    )
+
+    Recognize.ast("-ab", "-c").value should have (
+      flag.set('a'),
+      flag.set('b'),
+      flag.set('c')
+    )
+  }
+
+
+  test("flags. grouped. negative") {
+    implicit val cmd = new Cmd(
+      "program",
+      keyedProps = Flag('a') :+ Flag('b') :+ Flag('c'))
+
+    Recognize.ast("-abx") shouldBe RecognizeErr.UnknownProperty("x")
+
+    Recognize.ast("-a", "-bx") shouldBe RecognizeErr.UnknownProperty("x")
+
+    Recognize.ast("-ab", "-x") shouldBe RecognizeErr.UnknownProperty("x")
+  }
+
   test("flags. repetitive. positive") {
     implicit val cmd = new Cmd(
       "program",
