@@ -90,6 +90,7 @@ object Def {
     key: Key,
     required: Boolean = false,
     repetitive: Boolean = false,
+    keyVal: Boolean = false,
     valueLabel: String = "value",
     text: Option[String] = None,
     private[cli3] val occurrences: Int = 0) extends Keyed {
@@ -98,7 +99,9 @@ object Def {
 
     def `?`: Opt = copy(required = false)
 
-    def `∞`: Opt = copy(repetitive = true)
+    def rep: Opt = copy(repetitive = true)
+
+    def kv: Opt = copy(keyVal = true)
 
     def :+(x: Opt): KeyedProps = KeyedProps(List(this, x))
 
@@ -114,6 +117,32 @@ object Def {
 
     override def equals(x: Any): Boolean = canEqual(x) && {
       x.asInstanceOf[Opt].key =:= key
+    }
+  }
+
+  final object Opt {
+    sealed trait Val { def flatMap(fn: String => Effect[String]): Effect[Val] }
+    final case class Val1(_1: String) extends Val {
+      def flatMap(fn: String => Effect[String]): Effect[Val] = fn(_1) map Val1.apply
+    }
+    final case class Val2(_1: String, _2: String) extends Val {
+      def flatMap(fn: String => Effect[String]): Effect[Val] = for {
+        _1 <- fn(_1)
+        _2 <- fn(_2)
+      } yield Val2(_1, _2)
+    }
+
+    def parse(x: String): Val = {
+      val eqNum = x.foldLeft(0) {
+        case (acc, '=') => acc + 1
+        case (acc, _)   => acc
+      }
+
+      if (eqNum == 1) {
+        val Array(k, v) = x split '='
+        Val2(k, v)
+      } else
+        Val1(x)
     }
   }
 

@@ -80,13 +80,13 @@ object Res {
    * | Opts
    * +------------------
    */
-  final case class Opts private (elements: Map[D.Opt, List[String]] = Map.empty) {
+  final case class Opts private (elements: Map[D.Opt, List[D.Opt.Val]] = Map.empty) {
 
     def isEmpty: Boolean = elements.isEmpty
 
     def nonEmpty: Boolean = !isEmpty
 
-    def updated(o: D.Opt, v: String): Opts = {
+    def updated(o: D.Opt, v: D.Opt.Val): Opts = {
       def updated = elements.updatedWith(o) {
         _.map(_ :+ v) orElse Some(List(v))
       }
@@ -94,11 +94,59 @@ object Res {
       copy(elements = updated)
     }
 
-    def find(k: Key): Option[(D.Opt, List[String])] = elements collectFirst {
+    def find(k: Key): Option[(D.Opt, List[D.Opt.Val])] = elements collectFirst {
       case (o, v) if o.key =:= k => (o, v)
     }
 
-    def get(k: Key): Option[List[String]] = find(k) map { case (_, opt) => opt }
+    def get(k: Key): Option[List[D.Opt.Val]] = find(k) map { case (_, opt) => opt }
+
+    def stringOrElse[L](
+      k: Key,
+      wrongDef: D.Opt => L,
+      wrongRes: D.Opt.Val => L): Option[Either[L, Option[String]]] = {
+
+      find(k) map {
+        case (opt, v) if !opt.repetitive && !opt.keyVal =>
+          v.headOption match {
+            case Some(D.Opt.Val1(v)) => Right(Some(v))
+            case None                => Right(None)
+            case Some(v)             => Left(wrongRes(v))
+          }
+        case (opt, _) => Left(wrongDef(opt))
+      }
+    }
+
+    def listOrElse[L](
+      k: Key,
+      wrongDef: D.Opt => L,
+      wrongRes: D.Opt.Val => L): Option[Either[L, List[String]]] = {
+
+      find(k) map {
+        case (opt, v) if opt.repetitive && !opt.keyVal =>
+          v.foldLeft[Either[L, List[String]]](Right(Nil)) {
+            case (Right(agg), D.Opt.Val1(v)) => Right(agg :+ v)
+            case (Right(_), v)               => Left(wrongRes(v))
+            case (Left(x), _)                => Left(x)
+          }
+        case (opt, _) => Left(wrongDef(opt))
+      }
+    }
+
+    def mapOrElse[L](
+      k: Key,
+      wrongDef: D.Opt => L,
+      wrongRes: D.Opt.Val => L): Option[Either[L, Map[String, String]]] = {
+
+      find(k) map {
+        case (opt, v) if opt.repetitive && opt.keyVal =>
+          v.foldLeft[Either[L, Map[String, String]]](Right(Map.empty)) {
+            case (Right(agg), D.Opt.Val2(k, v)) => Right(agg.updated(k, v))
+            case (Right(_), v)                  => Left(wrongRes(v))
+            case (Left(x), _)                   => Left(x)
+          }
+        case (opt, _) => Left(wrongDef(opt))
+      }
+    }
   }
 
   object Opts {
@@ -118,7 +166,7 @@ object Res {
 
     def withFlag(f: D.Flag): Cmd = copy(flags = flags.set(f))
 
-    def withOpt(o: D.Opt, v: String): Cmd = copy(opts = opts.updated(o, v))
+    def withOpt(o: D.Opt, v: D.Opt.Val): Cmd = copy(opts = opts.updated(o, v))
 
     def withArg(o: D.Arg, v: String): Cmd = copy(args = args.updated(o, v))
 
@@ -141,7 +189,7 @@ object Res {
 
   class Builder extends cli3.Builder[Cmd]()(SubAdapter) {
     override def withFlag(init: Cmd, flag: Def.Flag): Effect[Cmd] = Ok(init.withFlag(flag))
-    override def withOpt(init: Cmd, opt: Def.Opt, value: String): Effect[Cmd] = Ok(init.withOpt(opt, value))
+    override def withOpt(init: Cmd, opt: Def.Opt, value: D.Opt.Val): Effect[Cmd] = Ok(init.withOpt(opt, value))
     override def withArg(init: Cmd, arg: Def.Arg, value: String): Effect[Cmd] = Ok(init.withArg(arg, value))
     override def withSubCmd(init: Cmd, cmd: Def.Cmd, value: sub.Command): Effect[Cmd] = Ok(init.withCmd(cmd, value.asInstanceOf[Cmd]))
   }

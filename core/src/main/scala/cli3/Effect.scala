@@ -48,7 +48,7 @@ object RecognizeErr {
   final case class FormatError(text: String) extends RecognizeErr
   final case class RepetitionOfNonRepetitive(flag: Def.Keyed) extends RecognizeErr
   final case class UnexpectedFlag(flag: Def.Flag) extends RecognizeErr
-  final case class UnexpectedOpt(opt: Def.Opt, value: String) extends RecognizeErr
+  final case class UnexpectedOpt(opt: Def.Opt, value: Def.Opt.Val) extends RecognizeErr
   final case class UnexpectedArg(arg: Def.Arg, value: String) extends RecognizeErr
   final case class ArgAlreadySet(arg: Def.Arg, value: String) extends RecognizeErr
   final case class IllegalState(state: Any) extends RecognizeErr

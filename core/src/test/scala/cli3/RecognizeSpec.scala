@@ -301,11 +301,33 @@ class RecognizeSpec extends AnyFunSuite {
   test("opts. repetitive. positive") {
     implicit val cmd = new Cmd(
       "program",
-      keyedProps = Opt('v').∞)
+      keyedProps = Opt('v').rep)
 
     Recognize.ast("-v", "1", "-v", "2").value should have { opt.set('v', List("1", "2")) }
     Recognize.ast("-v", "1", "-v", "2", "-v", "3").value should have { opt.set('v', List("1", "2", "3")) }
     Recognize.ast("-v", "1", "-v", "2", "-v", "3", "-v", "4").value should have { opt.set('v', List("1", "2", "3", "4")) }
+  }
+
+  test("opts. maps. positive") {
+    implicit val cmd = new Cmd(
+      "program",
+      keyedProps = Opt('D'|"dallas").rep.kv)
+
+    Recognize.ast("-Da1=b1").value should have { opt.set('D', Map("a1" -> "b1")) }
+    Recognize.ast("-Da1=b1", "-Da2=b2").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2")) }
+    Recognize.ast("-Da1=b1", "-Da2=b2", "-Da3=b3").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2", "a3" -> "b3")) }
+
+    Recognize.ast("-D a1=b1").value should have { opt.set('D', Map("a1" -> "b1")) }
+    Recognize.ast("-D a1=b1", "-D a2=b2").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2")) }
+    Recognize.ast("-D a1=b1", "-D a2=b2", "-D a3=b3").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2", "a3" -> "b3")) }
+
+    Recognize.ast("-D", "a1=b1").value should have { opt.set('D', Map("a1" -> "b1")) }
+    Recognize.ast("-D", "a1=b1", "-D", "a2=b2").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2")) }
+    Recognize.ast("-D", "a1=b1", "-D", "a2=b2", "-D", "a3=b3").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2", "a3" -> "b3")) }
+
+    Recognize.ast("--dallas=a1=b1").value should have { opt.set('D', Map("a1" -> "b1")) }
+    Recognize.ast("--dallas=a1=b1", "--dallas=a2=b2").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2")) }
+    Recognize.ast("--dallas=a1=b1", "--dallas=a2=b2", "--dallas=a3=b3").value should have { opt.set('D', Map("a1" -> "b1", "a2" -> "b2", "a3" -> "b3")) }
   }
 
   test("opts. repetitive. negative") {
@@ -367,17 +389,22 @@ object RecognizeSpec {
       override def withOpt(
         init: FsCmd,
         opt: Opt,
-        value: String): Effect[FsCmd] = if (opt.key =:= 'n') {
-        for {
-          n <- try Ok(value.toInt) catch {
-            case err: NumberFormatException => RecognizeErr.FormatError(err.getMessage)
-          }
-          r <- init match {
-            case cmd: Head => Ok(cmd.copy(linesNum = n))
-            case cmd: Tail => Ok(cmd.copy(linesNum = n))
-            case cmd       => RecognizeErr.IllegalState(cmd)
-          }
-        } yield r
+        value: Opt.Val): Effect[FsCmd] = if (opt.key =:= 'n') {
+        value match {
+          case Opt.Val1(v) =>
+            for {
+              n <- try Ok(v.toInt) catch {
+                case err: NumberFormatException => RecognizeErr.FormatError(err.getMessage)
+              }
+              r <- init match {
+                case cmd: Head => Ok(cmd.copy(linesNum = n))
+                case cmd: Tail => Ok(cmd.copy(linesNum = n))
+                case cmd       => RecognizeErr.IllegalState(cmd)
+              }
+            } yield r
+          case _: Opt.Val2 =>
+            RecognizeErr.UnexpectedOpt(opt, value)
+        }
       } else RecognizeErr.UnexpectedOpt(opt, value)
 
       override def withArg(
@@ -416,7 +443,7 @@ object RecognizeSpec {
 
     val builder = new Builder[FsApp]()(fsCmdAdapter) {
       override def withFlag(init: FsApp, flag: Flag): Effect[FsApp] = if (flag.key =:= 'v') Ok(init.copy(verbose = true)) else RecognizeErr.UnexpectedFlag(flag)
-      override def withOpt(init: FsApp, opt: Opt, value: String): Effect[FsApp] = RecognizeErr.UnexpectedOpt(opt, value)
+      override def withOpt(init: FsApp, opt: Opt, value: Opt.Val): Effect[FsApp] = RecognizeErr.UnexpectedOpt(opt, value)
       override def withArg(init: FsApp, arg: Arg, value: String): Effect[FsApp] = RecognizeErr.UnexpectedArg(arg, value)
       override def withSubCmd(init: FsApp, cmd: Cmd, value: sub.Command): Effect[FsApp] = Ok(init.copy(cmd = value.asInstanceOf[FsCmd]))
     }

@@ -85,7 +85,7 @@ object Recognize {
         // --opt=val
         case Ok((p: D.Opt, Some(v)))  =>
           for {
-            v <- unquote(v)
+            v <- D.Opt.parse(v) flatMap unquote
             u <- bld.withOpt(res, p, v)
             d <- defn.occurred(p)
             r <- parseCmd(tail(xs.tail), d, u, bld)
@@ -93,12 +93,12 @@ object Recognize {
 
         // --opt
         // assuming the value comes as next element of `xs` array
-        case Ok((p: D.Opt, None)) if xs.tail.nonEmpty =>
+        case Ok((p: D.Opt, None)) if tail(xs.tail).nonEmpty =>
           for {
-            v <- unquote(xs.tail.head)
+            v <- D.Opt.parse(tail(xs.tail).head) flatMap unquote
             u <- bld.withOpt(res, p, v)
             d <- defn.occurred(p)
-            r <- parseCmd(tail(xs.tail.tail), d, u, bld)
+            r <- parseCmd(tail(xs.tail).tail, d, u, bld)
           } yield r
 
         // option without value
@@ -136,10 +136,18 @@ object Recognize {
     }
 
     xs.map(_.trim).filterNot(_.isEmpty).headOption match {
-      case Some(x) if x.startsWith("--")                 => handleKeyed(x.substring(2), None)
-      case Some(x) if x.startsWith("-") && x.length == 2 => handleKeyed(x.substring(1), None)
-      case Some(x) if x.startsWith("-") && x.length > 2  => handleKeyed(x.charAt(1).toString, Some("-" + x.substring(2)))
-      case Some(x)                                       => for { x <- unquote(x); r <- handleIndexed(x) } yield r
+      // --dallas
+      case Some(x) if x.startsWith("--")                   => handleKeyed(x.substring(2), None)
+      // -d
+      case Some(x) if x.startsWith("-") && x.length == 2   => handleKeyed(x.substring(1), None)
+      // -l=info -l=debug
+      case Some(x) if x.startsWith("-") && x.length > 2 && x.charAt(2) == '=' => handleKeyed(x.charAt(1).toString, Some(x.substring(3)))
+      // -Dprop1=val1 -Dprop2=val2
+      case Some(x) if x.startsWith("-") && x.contains('=') => handleKeyed(x.charAt(1).toString, Some(x.substring(2).trim))
+      // -abc (grouped flags)
+      case Some(x) if x.startsWith("-") && x.length > 2    => handleKeyed(x.charAt(1).toString, Some("-" + x.substring(2)))
+      // args
+      case Some(x)                                         => for { x <- unquote(x); r <- handleIndexed(x) } yield r
       case None =>
         val props = defn.requiredProps flatMap {
           case k: D.Keyed      => Some(k.key.toString)

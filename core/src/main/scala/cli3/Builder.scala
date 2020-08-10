@@ -11,7 +11,7 @@ trait SubCommandAdapter[T] {
 
 abstract class Builder[T](implicit val sub: SubCommandAdapter[T]) {
   def withFlag(init: T, flag: D.Flag): Effect[T]
-  def withOpt(init: T, opt: D.Opt, value: String): Effect[T]
+  def withOpt(init: T, opt: D.Opt, value: D.Opt.Val): Effect[T]
   def withArg(init: T, opt: D.Arg, value: String): Effect[T]
   def init(cmd: D.Cmd): Effect[(sub.Command, Builder[sub.Command])] = sub.init(cmd)
   def withSubCmd(init: T, cmd: D.Cmd, value: sub.Command): Effect[T]
@@ -20,7 +20,7 @@ abstract class Builder[T](implicit val sub: SubCommandAdapter[T]) {
 object Builder {
   object UnitBuilder extends Builder[Unit]()(new UnitAdapter[Unit]()) {
     override def withFlag(init: Unit, flag: Def.Flag): Effect[Unit] = Ok(init)
-    override def withOpt(init: Unit, opt: Def.Opt, value: String): Effect[Unit] = Ok(init)
+    override def withOpt(init: Unit, opt: Def.Opt, value: D.Opt.Val): Effect[Unit] = Ok(init)
     override def withArg(init: Unit, arg: Def.Arg, value: String): Effect[Unit] = Ok(init)
     override def withSubCmd(init: Unit, cmd: Def.Cmd, value: sub.Command): Effect[Unit] = Ok(init)
   }

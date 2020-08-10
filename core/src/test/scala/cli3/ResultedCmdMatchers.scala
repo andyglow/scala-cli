@@ -49,21 +49,31 @@ trait ResultedCmdMatchers {
 
   object opt {
 
-    def set(k: Key, expect: String)(implicit pos: Position): HavePropertyMatcher[R.Cmd, String] = HavePropertyMatcher { cmd =>
-      val actual = cmd.opts.get(k) getOrElse {
-        throw new TestFailedException((_: StackDepthException) => Some(s"Opt $k is not defined for this command"), None, pos)
+    def set(k: Key, expect: String)(implicit pos: Position): HavePropertyMatcher[R.Cmd, Option[String]] = HavePropertyMatcher { cmd =>
+      val actual = cmd.opts.stringOrElse(
+        k,
+        d => s"Opt $k is specified as (repetitive=${d.repetitive}, keyVal=${d.keyVal})",
+        r => s"Unexpected value $r") match {
+        case Some(Right(v))  => v
+        case Some(Left(err)) => throw new TestFailedException((_: StackDepthException) => Some(err), None, pos)
+        case None => throw new TestFailedException((_: StackDepthException) => Some(s"Opt $k is not defined for this command"), None, pos)
       }
 
       HavePropertyMatchResult(
-        actual contains expect,
+        actual.contains(expect),
         k.toString,
-        expect,
-        actual mkString ", ")
+        Some(expect),
+        actual)
     }
 
     def set(k: Key, expect: List[String])(implicit pos: Position): HavePropertyMatcher[R.Cmd, List[String]] = HavePropertyMatcher { cmd =>
-      val actual = cmd.opts.get(k) getOrElse {
-        throw new TestFailedException((_: StackDepthException) => Some(s"Opt $k is not defined for this command"), None, pos)
+      val actual = cmd.opts.listOrElse(
+        k,
+        d => s"Opt $k is specified as (repetitive=${d.repetitive}, keyVal=${d.keyVal})",
+        r => s"Unexpected value $r") match {
+        case Some(Right(v))  => v
+        case Some(Left(err)) => throw new TestFailedException((_: StackDepthException) => Some(err), None, pos)
+        case None => throw new TestFailedException((_: StackDepthException) => Some(s"Opt $k is not defined for this command"), None, pos)
       }
 
       val matches = actual.foldLeft(expect.toVector) {
@@ -75,11 +85,33 @@ trait ResultedCmdMatchers {
           }
       }.isEmpty
 
-      println(
-        s"""!!! $matches
-           |!!! expect $expect
-           |!!! actual $actual
-           |""".stripMargin)
+      HavePropertyMatchResult(
+        matches,
+        k.toString,
+        expect,
+        actual)
+    }
+
+    def set(k: Key, expect: Map[String, String])(implicit pos: Position): HavePropertyMatcher[R.Cmd, Map[String, String]] = HavePropertyMatcher { cmd =>
+      val actual = cmd.opts.mapOrElse(
+        k,
+        d => s"Opt $k is specified as (repetitive=${d.repetitive}, keyVal=${d.keyVal})",
+        r => s"Unexpected value $r") match {
+        case Some(Right(v))  => v
+        case Some(Left(err)) => throw new TestFailedException((_: StackDepthException) => Some(err), None, pos)
+        case None => throw new TestFailedException((_: StackDepthException) => Some(s"Opt $k is not defined for this command"), None, pos)
+      }
+
+
+      val matches = actual.foldLeft(expect.toVector) {
+        case (rest, e) =>
+          var found = false
+          rest flatMap {
+            case r if r == e && !found => found = true; None
+            case r => Some(r)
+          }
+      }.isEmpty
+
       HavePropertyMatchResult(
         matches,
         k.toString,
